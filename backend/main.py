@@ -59,6 +59,15 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def auto_api_prefix_middleware(request, call_next):
+    """Automatically routes requests without '/api' prefix to the corresponding '/api' handler."""
+    path = request.url.path
+    if not path.startswith("/api") and path not in ("/", "/docs", "/openapi.json", "/redoc"):
+        request.scope["path"] = f"/api{path}"
+    return await call_next(request)
+
+
 @app.get("/")
 def root():
     return {

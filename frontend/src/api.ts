@@ -10,7 +10,31 @@ import {
   AIExplainability
 } from './types';
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') || '/api';
+const getApiBase = () => {
+  const envBase = (import.meta.env.VITE_API_BASE as string | undefined)?.trim().replace(/\/$/, '');
+  if (!envBase) return '/api';
+  return envBase.endsWith('/api') ? envBase : `${envBase}/api`;
+};
+
+const API_BASE = getApiBase();
+
+async function handleResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
+  if (!res.ok) {
+    let errMsg = fallbackMessage;
+    try {
+      const data = await res.json();
+      errMsg = data.detail || data.message || fallbackMessage;
+    } catch {
+      if (res.status === 404) {
+        errMsg = "Endpoint returned 404 (Not Found). Please check that VITE_API_BASE in Vercel points to your live Render backend (e.g. https://your-app.onrender.com/api).";
+      } else {
+        errMsg = `Server error (${res.status}): ${res.statusText || fallbackMessage}`;
+      }
+    }
+    throw new Error(errMsg);
+  }
+  return res.json();
+}
 
 // Session ID generation for round-robin model rotation across sessions
 function generateSessionId(): string {
@@ -33,11 +57,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, session_id: sessionId, account_id: accountId, provider_mode: providerMode })
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to inspect request' }));
-      throw new Error(err.detail || 'Inspection failed');
-    }
-    return res.json();
+    return handleResponse<FirewallVerdict>(res, 'Failed to inspect request');
   },
 
   async explainRequest(message: string, providerMode = 'round_robin'): Promise<AIExplainability> {
@@ -46,11 +66,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, provider_mode: providerMode })
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to generate AI explainability' }));
-      throw new Error(err.detail || 'AI Explainability request failed');
-    }
-    return res.json();
+    return handleResponse<AIExplainability>(res, 'Failed to generate AI explainability');
   },
 
   async executeRequest(requestId: string, confirmation: boolean, sessionId = 'demo-session-1'): Promise<ExecuteResponse> {
@@ -59,17 +75,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ request_id: requestId, confirmation, session_id: sessionId })
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Execution rejected' }));
-      throw new Error(err.detail || 'Execution rejected by Authorization Gate');
-    }
-    return res.json();
+    return handleResponse<ExecuteResponse>(res, 'Execution rejected by Authorization Gate');
   },
 
   async getDashboardMetrics(): Promise<DashboardMetrics> {
     const res = await fetch(`${API_BASE}/dashboard/metrics`);
-    if (!res.ok) throw new Error('Failed to load metrics');
-    return res.json();
+    return handleResponse<DashboardMetrics>(res, 'Failed to load metrics');
   },
 
   async getAuditLogs(params?: {
@@ -87,8 +98,7 @@ export const api = {
     if (params?.offset) query.append('offset', params.offset.toString());
 
     const res = await fetch(`${API_BASE}/audit?${query.toString()}`);
-    if (!res.ok) throw new Error('Failed to load audit logs');
-    return res.json();
+    return handleResponse<{ total: number; limit: number; offset: number; logs: AuditLogEntry[] }>(res, 'Failed to load audit logs');
   },
 
   downloadAuditCsvUrl(params?: { search?: string; decision?: string; risk?: string }): string {
@@ -102,8 +112,7 @@ export const api = {
 
   async getPolicy(): Promise<FirewallPolicy> {
     const res = await fetch(`${API_BASE}/policy`);
-    if (!res.ok) throw new Error('Failed to load policy');
-    return res.json();
+    return handleResponse<FirewallPolicy>(res, 'Failed to load policy');
   },
 
   async updatePolicy(policyData: Partial<FirewallPolicy>, operatorToken: string): Promise<FirewallPolicy> {
@@ -115,35 +124,27 @@ export const api = {
       },
       body: JSON.stringify(policyData)
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Policy update failed' }));
-      throw new Error(err.detail || 'Unauthorized or invalid policy payload');
-    }
-    return res.json();
+    return handleResponse<FirewallPolicy>(res, 'Unauthorized or invalid policy payload');
   },
 
   async getAccounts(): Promise<AccountInfo[]> {
     const res = await fetch(`${API_BASE}/accounts`);
-    if (!res.ok) throw new Error('Failed to load accounts');
-    return res.json();
+    return handleResponse<AccountInfo[]>(res, 'Failed to load accounts');
   },
 
   async getRecipients(): Promise<RecipientInfo[]> {
     const res = await fetch(`${API_BASE}/recipients`);
-    if (!res.ok) throw new Error('Failed to load recipients');
-    return res.json();
+    return handleResponse<RecipientInfo[]>(res, 'Failed to load recipients');
   },
 
   async getTransactions(): Promise<MockTransaction[]> {
     const res = await fetch(`${API_BASE}/transactions`);
-    if (!res.ok) throw new Error('Failed to load transactions');
-    return res.json();
+    return handleResponse<MockTransaction[]>(res, 'Failed to load transactions');
   },
 
   async seedDemoData(): Promise<{ success: boolean; message: string }> {
     const res = await fetch(`${API_BASE}/demo/seed`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to reset demo environment');
-    return res.json();
+    return handleResponse<{ success: boolean; message: string }>(res, 'Failed to reset demo environment');
   },
 
   async loginGoogle(userData: {
@@ -159,8 +160,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData)
     });
-    if (!res.ok) throw new Error('Failed to complete Google login');
-    return res.json();
+    return handleResponse<{ status: string; user: any }>(res, 'Failed to complete Google login');
   },
 
   getChatSessionId(): string {
@@ -188,18 +188,13 @@ export const api = {
         session_id: sessionId
       })
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to communicate with AI Copilot' }));
-      throw new Error(err.detail || 'AI Copilot communication failed');
-    }
-    return res.json();
+    return handleResponse<import('./types').ChatResponsePayload>(res, 'Failed to communicate with AI Copilot');
   },
 
   async getChatStatus(sessionId?: string): Promise<import('./types').ChatStatusPayload> {
     const sId = sessionId || activeChatSessionId;
     const res = await fetch(`${API_BASE}/chat/status?session_id=${encodeURIComponent(sId)}`);
-    if (!res.ok) throw new Error('Failed to fetch chat status');
-    return res.json();
+    return handleResponse<import('./types').ChatStatusPayload>(res, 'Failed to fetch chat status');
   }
 };
 
