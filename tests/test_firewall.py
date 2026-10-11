@@ -376,3 +376,52 @@ def test_policy_update_with_valid_token(client):
     data = res.json()
     assert data["max_single_transfer"] == 3500.0
     assert "v" in data["version"]
+
+
+# ==============================================================================
+# 7. APPLICATION SECURITY & HARDENING INVARIANT TESTS
+# ==============================================================================
+
+def test_enterprise_security_headers_present(client):
+    """Verifies enterprise defensive HTTP security headers are injected."""
+    res = client.get("/api/health")
+    assert res.status_code == 200
+    assert res.headers["x-content-type-options"] == "nosniff"
+    assert res.headers["x-frame-options"] == "DENY"
+    assert "1; mode=block" in res.headers["x-xss-protection"]
+    assert "strict-origin-when-cross-origin" in res.headers["referrer-policy"]
+    assert "camera=(), microphone=(), geolocation=()" in res.headers["permissions-policy"]
+
+
+def test_payload_size_limit_rejection(client):
+    """Enforces 128KB hard payload ceiling to protect against DoS/ReDoS."""
+    oversized_message = "A" * 140000  # 140 KB payload
+    res = client.post(
+        "/api/firewall/inspect",
+        json={"message": oversized_message, "session_id": "dos-test"}
+    )
+    assert res.status_code == 413
+    assert "Payload Too Large" in res.json()["detail"]
+
+
+def test_empty_and_whitespace_input_handling(client):
+    """Gracefully handles empty or pure whitespace input without server fault."""
+    res = client.post(
+        "/api/firewall/inspect",
+        json={"message": "   ", "session_id": "empty-test"}
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["decision"] in (Decision.BLOCK.value, Decision.REVIEW.value)
+
+
+def test_constant_time_token_rejection_security(client):
+    """Rejects malformed operator tokens safely."""
+    res = client.put(
+        "/api/policy",
+        json={"max_single_transfer": 5000.0},
+        headers={"X-Operator-Token": "attacker-forged-token-xyz"}
+    )
+    assert res.status_code == 401
+    assert "Unauthorized" in res.json()["detail"]
+

@@ -73,7 +73,7 @@ async def security_and_routing_middleware(request: Request, call_next):
     content_length = request.headers.get("content-length")
     if content_length and content_length.isdigit() and int(content_length) > _MAX_PAYLOAD_BYTES:
         return JSONResponse(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             content={"detail": "Payload Too Large: Maximum allowed payload is 128 KB."}
         )
 
@@ -89,6 +89,12 @@ async def security_and_routing_middleware(request: Request, call_next):
             headers={"Retry-After": "60"}
         )
     _RATE_LIMIT_BUCKET[client_ip].append(now)
+
+    # Prune stale client IPs if bucket size grows to avoid memory leaks
+    if len(_RATE_LIMIT_BUCKET) > 1000:
+        stale_ips = [ip for ip, times in _RATE_LIMIT_BUCKET.items() if not times or (now - times[-1] >= _RATE_LIMIT_WINDOW_SECONDS)]
+        for ip in stale_ips:
+            _RATE_LIMIT_BUCKET.pop(ip, None)
 
     # 3. Automatically route requests without '/api' prefix to corresponding handler
     path = request.url.path
@@ -107,6 +113,21 @@ async def security_and_routing_middleware(request: Request, call_next):
     response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
 
     return response
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Safely sanitizes unexpected server exceptions to prevent internal information leakage."""
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=exc.headers
+        )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "An internal server error occurred while processing the request."}
+    )
 
 
 @app.get("/")
