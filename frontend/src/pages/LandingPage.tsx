@@ -12,7 +12,6 @@ import {
   Mail
 } from 'lucide-react';
 import { AuthUser, AccountInfo } from '../types';
-import { GoogleAuthButton } from '../components/GoogleAuthButton';
 import { api } from '../api';
 
 const ARCHITECTURE_IMAGE_PATH = '/image.jpg';
@@ -273,24 +272,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </button>
               </form>
 
-              {/* Clean Divider (Text clearly flanked by lines, not struck through) */}
-              <div className="flex items-center gap-3 my-2 text-white/50 text-[10px] uppercase font-mono tracking-wider">
-                <div className="h-[1px] bg-white/20 flex-1" />
-                <span className="whitespace-nowrap">or continue with Google</span>
-                <div className="h-[1px] bg-white/20 flex-1" />
-              </div>
 
-              {/* Official Google OAuth Button */}
-              {onLoginSuccess && (
-                <div className="flex flex-col items-center pt-2">
-                  <GoogleAuthButton
-                    mode={authMode}
-                    onSuccess={onLoginSuccess}
-                    buttonText={authMode === 'signup' ? 'Sign up with Google' : 'Sign in with Google'}
-                    darkVariant={true}
-                  />
-                </div>
-              )}
 
               {/* Bottom Toggle Link */}
               <div className="text-center text-xs text-white/70 pt-2 border-t border-white/15">
