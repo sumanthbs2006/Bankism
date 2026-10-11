@@ -12,7 +12,7 @@ import {
 
 const getApiBase = () => {
   const envBase = (import.meta.env.VITE_API_BASE as string | undefined)?.trim().replace(/\/$/, '');
-  if (!envBase) return '/api';
+  if (!envBase) return 'https://bankism-nuos.onrender.com/api';
   return envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 };
 
