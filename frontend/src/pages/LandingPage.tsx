@@ -12,6 +12,7 @@ import {
   Mail
 } from 'lucide-react';
 import { AuthUser, AccountInfo } from '../types';
+import { GoogleAuthButton } from '../components/GoogleAuthButton';
 import { api } from '../api';
 
 const ARCHITECTURE_IMAGE_PATH = '/image.jpg';
@@ -273,8 +274,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </form>
 
 
+              {/* Clean Single Google Sign In Option */}
+              <div className="flex items-center gap-3 my-2 text-white/50 text-[10px] uppercase font-mono tracking-wider">
+                <div className="h-[1px] bg-white/20 flex-1" />
+                <span className="whitespace-nowrap">or</span>
+                <div className="h-[1px] bg-white/20 flex-1" />
+              </div>
 
-              {/* Bottom Toggle Link */}
+              {onLoginSuccess && (
+                <div className="flex flex-col items-center pt-1">
+                  <GoogleAuthButton
+                    onSuccess={onLoginSuccess}
+                    buttonText={authMode === 'signup' ? 'Sign up with Google' : 'Sign in with Google'}
+                    darkVariant={true}
+                  />
+                </div>
+              )}
               <div className="text-center text-xs text-white/70 pt-2 border-t border-white/15">
                 {authMode === 'signup' ? (
                   <span>
