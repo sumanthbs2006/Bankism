@@ -10,30 +10,67 @@ import {
   AIExplainability
 } from './types';
 
-const getApiBase = () => {
+export const getBackendUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem('bankism_backend_url');
+    if (local && local.trim()) return local.trim().replace(/\/$/, '');
+  }
   const envBase = (import.meta.env.VITE_API_BASE as string | undefined)?.trim().replace(/\/$/, '');
-  if (!envBase) return '/api';
-  return envBase.endsWith('/api') ? envBase : `${envBase}/api`;
+  if (envBase) return envBase;
+  return '';
+};
+
+export const setBackendUrl = (url: string) => {
+  if (typeof window !== 'undefined') {
+    const cleaned = url.trim().replace(/\/$/, '');
+    if (cleaned) {
+      localStorage.setItem('bankism_backend_url', cleaned);
+    } else {
+      localStorage.removeItem('bankism_backend_url');
+    }
+    window.location.reload();
+  }
+};
+
+const getApiBase = () => {
+  const base = getBackendUrl();
+  if (!base) return '/api';
+  return base.endsWith('/api') ? base : `${base}/api`;
 };
 
 const API_BASE = getApiBase();
 
 async function handleResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
+
+  // If server returned HTML (e.g. Vercel serving index.html because Render backend URL is not connected)
+  if (contentType.includes('text/html') || text.trim().startsWith('<') || text.toLowerCase().includes('<!doctype')) {
+    throw new Error(
+      "Backend connection not detected. Vercel returned HTML instead of API data. Please set your Render backend URL (e.g. https://your-app.onrender.com) using the connection bar above or in Vercel environment variables."
+    );
+  }
+
   if (!res.ok) {
     let errMsg = fallbackMessage;
     try {
-      const data = await res.json();
+      const data = JSON.parse(text);
       errMsg = data.detail || data.message || fallbackMessage;
     } catch {
       if (res.status === 404) {
-        errMsg = "Endpoint returned 404 (Not Found). Please check that VITE_API_BASE in Vercel points to your live Render backend (e.g. https://your-app.onrender.com/api).";
+        errMsg = "Endpoint returned 404 (Not Found). Please check that your Render backend is running.";
       } else {
         errMsg = `Server error (${res.status}): ${res.statusText || fallbackMessage}`;
       }
     }
     throw new Error(errMsg);
   }
-  return res.json();
+
+  try {
+    return JSON.parse(text) as T;
+  } catch (err: any) {
+    throw new Error(`Invalid JSON response: ${err.message}`);
+  }
 }
 
 // Session ID generation for round-robin model rotation across sessions
