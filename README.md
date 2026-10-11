@@ -3,19 +3,6 @@
 > **"Secure Every Prompt. Protect Every Transaction."**  
 > Bankism is an enterprise-grade, full-stack defensive security firewall and deterministic authorization gate engineered specifically for conversational financial systems. It acts as an immutable shield between untrusted natural-language prompts and privileged financial actions.
 
----
-
-## 🏆 Project Overview & Evaluation Guide
-
-This submission is structured to address every tier of the evaluation criteria:
-
-| Evaluation Tier | Focus Areas Addressed in this Repository | Relevant Sections |
-|---|---|---|
-| **High Impact** | **Core Security Invariant**, **Zero-Trust Authorization Gate**, **Comprehensive Threat Defense**, **Robust Testing Suite (100% Passing)**, **Chosen Vertical & Problem Definition** | [§1](#1-chosen-vertical--problem-definition-high-impact), [§2](#2-core-security-invariant--approach-high-impact), [§5](#5-security--safe-and-responsible-implementation-high-impact), [§7](#7-testing--validation-of-functionality-high-impact) |
-| **Medium Impact** | **Pipeline Architecture & Logic**, **Modular Code Quality & Type Safety**, **Resource Efficiency & Sub-15ms Latency**, **Multi-LLM Advisory Round-Robin** | [§3](#3-approach-and-logic-medium-impact), [§4](#4-how-the-solution-works-medium-impact), [§6](#6-code-quality--structure-readability-maintainability-medium-impact), [§8](#8-efficiency--optimal-use-of-resources-medium-impact) |
-| **Low Impact** | **Inclusive Accessibility (WCAG 2.1 AA)**, **Deterministic Assumptions**, **Repository Hygiene (<10 MB, Single Branch)**, **Live Interactive Walkthrough** | [§9](#9-accessibility--inclusive-and-usable-design-low-impact), [§10](#10-assumptions-made-low-impact), [§11](#11-quickstart--verification-commands-low-impact) |
-
----
 
 ## 1. Chosen Vertical & Problem Definition `[High Impact]`
 
