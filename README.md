@@ -323,19 +323,3 @@ python tests/smoke_test.py
 ```
 
 ---
-
-## 12. Verification Matrix for Evaluation Criteria
-
-| Requirement | Implementation & Proof | Status |
-|---|---|:---:|
-| **Repository size < 10 MB** | Total tracked files: **~1.7 MB** (clean assets, `.gitignore` protects heavy dirs) | **PASS** |
-| **Only one branch** | Single branch `main` | **PASS** |
-| **Chosen vertical** | FinTech / AI Defensive Banking Firewall (§1) | **PASS** |
-| **Approach & logic** | Multi-stage zero-trust deterministic pipeline (§2, §3) | **PASS** |
-| **How solution works** | 5-stage sequential processing & execution gate walkthrough (§4) | **PASS** |
-| **Assumptions made** | Explicit assumptions documented in §10 | **PASS** |
-| **Code Quality** | Modular architecture, Pydantic v2 schemas, TypeScript strict mode (§6) | **PASS** |
-| **Security** | Invariant enforcement, fail-closed gate, prompt injection & jailbreak defense (§2, §5) | **PASS** |
-| **Efficiency** | Sub-15ms local latency, zero mandatory LLM costs, optimized bundle (§8) | **PASS** |
-| **Testing** | 22/22 pytest tests passing + end-to-end smoke test passing (§7) | **PASS** |
-| **Accessibility** | WCAG 2.1 AA compliant, plain-English explainability, semantic HTML (§9) | **PASS** |
