@@ -56,10 +56,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration for Vite frontend
+# CORS configuration supporting dev and cloud deployments with credentials
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
