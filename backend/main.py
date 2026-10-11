@@ -4,20 +4,27 @@ import time
 import io
 import csv
 import json
+import secrets
+from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional, List, Dict
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Header, Query, status
+from fastapi import FastAPI, HTTPException, Header, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
+# In-memory sliding window rate limiter: maps IP -> list of timestamps
+_RATE_LIMIT_BUCKET: Dict[str, List[float]] = defaultdict(list)
+_RATE_LIMIT_MAX_REQUESTS = 180  # Max requests per window
+_RATE_LIMIT_WINDOW_SECONDS = 60  # 1-minute window
+_MAX_PAYLOAD_BYTES = 131072  # 128 KB max request body
 
 from backend.config import DEMO_OPERATOR_TOKEN
 from backend.db import init_db, get_db_connection, record_user_login, list_users
 from backend.mock_bank import MockBankingService
-from backend.pipeline import run_pipeline, get_active_policy, PrivilegedAuthorizationGate, SecurityGateViolation
+from backend.pipeline import run_pipeline, get_active_policy, invalidate_policy_cache, PrivilegedAuthorizationGate, SecurityGateViolation
 from backend.schemas import (
     InspectRequest,
     ExecuteRequest,
@@ -60,12 +67,46 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def auto_api_prefix_middleware(request, call_next):
-    """Automatically routes requests without '/api' prefix to the corresponding '/api' handler."""
+async def security_and_routing_middleware(request: Request, call_next):
+    """Enforces payload bounds, rate limiting, route rewrites, and enterprise security headers."""
+    # 1. Payload size guard against memory exhaustion / ReDoS
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > _MAX_PAYLOAD_BYTES:
+        return JSONResponse(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            content={"detail": "Payload Too Large: Maximum allowed payload is 128 KB."}
+        )
+
+    # 2. In-memory sliding window rate limiter
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    now = time.time()
+    history = _RATE_LIMIT_BUCKET[client_ip]
+    _RATE_LIMIT_BUCKET[client_ip] = [t for t in history if now - t < _RATE_LIMIT_WINDOW_SECONDS]
+    if len(_RATE_LIMIT_BUCKET[client_ip]) >= _RATE_LIMIT_MAX_REQUESTS:
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"detail": "Rate limit exceeded. Please wait a moment before sending more requests."},
+            headers={"Retry-After": "60"}
+        )
+    _RATE_LIMIT_BUCKET[client_ip].append(now)
+
+    # 3. Automatically route requests without '/api' prefix to corresponding handler
     path = request.url.path
     if not path.startswith("/api") and path not in ("/", "/docs", "/openapi.json", "/redoc"):
         request.scope["path"] = f"/api{path}"
-    return await call_next(request)
+
+    response: Response = await call_next(request)
+
+    # 4. Inject Enterprise HTTP Security Headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+
+    return response
 
 
 @app.get("/")
@@ -346,7 +387,7 @@ def update_policy_endpoint(
     x_operator_token: Optional[str] = Header(None, alias="X-Operator-Token")
 ):
     """Updates firewall policy settings. Protected by operator token authorization."""
-    if not x_operator_token or x_operator_token != DEMO_OPERATOR_TOKEN:
+    if not x_operator_token or not secrets.compare_digest(x_operator_token, DEMO_OPERATOR_TOKEN):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized: Valid demo operator token required in 'X-Operator-Token' header."
@@ -395,6 +436,7 @@ def update_policy_endpoint(
     ))
     conn.commit()
     conn.close()
+    invalidate_policy_cache()
 
     return get_active_policy()
 

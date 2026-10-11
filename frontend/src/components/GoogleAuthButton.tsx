@@ -210,7 +210,7 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
                   picture: profile.picture,
                   credential: tokenResponse.access_token
                 });
-              } catch (e: any) {
+              } catch {
                 setError('Failed to fetch user profile from Google.');
                 setLoading(false);
               }

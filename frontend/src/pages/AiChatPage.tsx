@@ -13,6 +13,10 @@ import {
 import { api } from '../api';
 import { ChatMessage } from '../types';
 
+let chatMsgCounter = 0;
+const generateChatMsgId = (prefix: string) => `${prefix}_${Date.now()}_${++chatMsgCounter}`;
+const getChatTimestamp = () => new Date().toISOString();
+
 export const AiChatPage: React.FC = () => {
   const [activeProvider, setActiveProvider] = useState<'gemini' | 'groq' | 'openai'>('gemini');
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
@@ -22,7 +26,7 @@ export const AiChatPage: React.FC = () => {
       content: 'Welcome to Bankism! How may I assist you with your accounts or transfers today?',
       provider_used: 'Bankism Assistant',
       provider_id: 'gemini',
-      timestamp: new Date().toISOString()
+      timestamp: '2026-01-01T00:00:00.000Z'
     }
   ]);
 
@@ -53,12 +57,12 @@ export const AiChatPage: React.FC = () => {
     if (!query || loading) return;
 
     setInput('');
-    const userMsgId = `usr_${Date.now()}`;
+    const userMsgId = generateChatMsgId('usr');
     const newMsg: ChatMessage = {
       id: userMsgId,
       role: 'user',
       content: query,
-      timestamp: new Date().toISOString()
+      timestamp: getChatTimestamp()
     };
 
     setMessages((prev) => [...prev, newMsg]);
@@ -80,7 +84,7 @@ export const AiChatPage: React.FC = () => {
       }
 
       const assistantMsg: ChatMessage = {
-        id: `ai_${Date.now()}`,
+        id: generateChatMsgId('ai'),
         role: 'assistant',
         content: res.response,
         provider_used: 'Bankism Assistant',
@@ -92,12 +96,12 @@ export const AiChatPage: React.FC = () => {
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
       const errorMsg: ChatMessage = {
-        id: `err_${Date.now()}`,
+        id: generateChatMsgId('err'),
         role: 'assistant',
         content: `Notice: ${err.message || 'Unable to connect to support right now'}. Deterministic firewall is protecting all ledger transactions.`,
         provider_used: 'Bankism Assistant',
         provider_id: activeProvider,
-        timestamp: new Date().toISOString()
+        timestamp: getChatTimestamp()
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {

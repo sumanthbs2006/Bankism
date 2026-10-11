@@ -91,6 +91,10 @@ LEET_REPLACEMENTS = {
     r'\bsy5t[e3]m\b': 'system',
 }
 
+# Pre-compiled regex for token separation evasion (e.g. "t.r.a.n.s.f.e.r", "i-g-n-o-r-e")
+SEP_PATTERN = re.compile(r'\b([a-zA-Z])[\.\-_ ]([a-zA-Z])[\.\-_ ]([a-zA-Z])[\.\-_ ]([a-zA-Z])(?:[\.\-_ ]([a-zA-Z]))*\b')
+PUNCT_CLEAN_RE = re.compile(r'[\.\-_ ]')
+
 
 def normalize_input(raw_text: str, max_length: int = 800) -> Tuple[str, NormalizationStageResult]:
     """Normalizes raw user input and reports all detected anomalies."""
@@ -174,19 +178,15 @@ def normalize_input(raw_text: str, max_length: int = 800) -> Tuple[str, Normaliz
 
     # 6. Check for excessive token separators (e.g. "t.r.a.n.s.f.e.r", "i-g-n-o-r-e")
     excessive_separators = False
-    # Pattern matching single letters separated by dots, dashes, or underscores: e.g. [a-zA-Z][\.\-_][a-zA-Z][\.\-_][a-zA-Z]
-    sep_pattern = re.compile(r'\b([a-zA-Z])[\.\-_ ]([a-zA-Z])[\.\-_ ]([a-zA-Z])[\.\-_ ]([a-zA-Z])(?:[\.\-_ ]([a-zA-Z]))*\b')
-    matches = sep_pattern.findall(text)
+    matches = SEP_PATTERN.findall(text)
     if matches:
         excessive_separators = True
         notes.append("Detected deliberate token separation (spaced or punctuated letters attempting evasion).")
-        # Collapse punctuated words for security inspection: e.g. "t.r.a.n.s.f.e.r" -> "transfer"
         def collapse_match(m):
             raw = m.group(0)
-            cleaned = re.sub(r'[\.\-_ ]', '', raw)
-            return cleaned
+            return PUNCT_CLEAN_RE.sub('', raw)
 
-        text = sep_pattern.sub(collapse_match, text)
+        text = SEP_PATTERN.sub(collapse_match, text)
         status = "FLAGGED"
 
     # 7. Check for known leetspeak evasions

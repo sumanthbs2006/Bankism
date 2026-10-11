@@ -23,6 +23,9 @@ from backend.mock_bank import MockBankingService
 from backend.db import get_db_connection
 
 
+GENUINE_NAME_REGEX = re.compile(r"^[A-Za-z]+(?: [A-Za-z]+)*$")
+
+
 def validate_genuine_recipient(name: Optional[str]) -> Tuple[bool, Optional[str]]:
     """Strictly validates that recipient is a genuine human name.
     
@@ -42,7 +45,7 @@ def validate_genuine_recipient(name: Optional[str]) -> Tuple[bool, Optional[str]
         return False, f"Invalid recipient '{trimmed}': Numbers are not allowed in recipient names."
         
     # 2. No special characters: only alphabetic letters and spaces
-    if not re.match(r"^[A-Za-z]+(?: [A-Za-z]+)*$", trimmed):
+    if not GENUINE_NAME_REGEX.match(trimmed):
         return False, f"Invalid recipient '{trimmed}': Special characters or symbols are not allowed. Only genuine alphabetic names are accepted."
         
     # 3. Minimum length

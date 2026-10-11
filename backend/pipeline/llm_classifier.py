@@ -8,6 +8,8 @@ and human-friendly AI explainability.
 import os
 import re
 import json
+import time
+import hashlib
 import urllib.request
 import urllib.error
 from typing import Optional, List, Dict, Any, Tuple
@@ -20,6 +22,10 @@ from backend.config import (
     GROQ_API_KEY
 )
 from backend.schemas import ThreatCategory, RiskLevel, AIExplainability
+
+# In-memory LRU Cache for LLM inspections (drastically cuts latency for repeated inputs)
+_INSPECTION_CACHE: Dict[str, Tuple[float, AIExplainability]] = {}
+_CACHE_TTL_SECONDS = 300  # 5 minutes cache TTL
 
 HEADERS_BROWSER = {
     "Content-Type": "application/json",
@@ -259,14 +265,25 @@ def inspect_with_round_robin_llm(
     text: str,
     provider_mode: str = "round_robin"
 ) -> AIExplainability:
-    """Inspects natural language banking prompt with 3-LLM Round Robin (Gemini -> Groq -> OpenAI)."""
+    """Inspects natural language banking prompt with 3-LLM Round Robin (Gemini -> Groq -> OpenAI) and LRU cache."""
+    clean_text = text.strip()
+    cache_key = hashlib.sha256(f"{provider_mode}:{clean_text.lower()}".encode("utf-8")).hexdigest()
+    now_ts = time.time()
+
+    # Return cached inspection result if available within TTL window
+    if cache_key in _INSPECTION_CACHE:
+        cached_time, cached_result = _INSPECTION_CACHE[cache_key]
+        if now_ts - cached_time < _CACHE_TTL_SECONDS:
+            return cached_result
+
     selected_provider, turn = inspection_state.next_provider(provider_mode)
     call_fn = DISPATCH_MAP.get(selected_provider)
+    result: Optional[AIExplainability] = None
 
     try:
         if call_fn:
             parsed, model_name = call_fn(text)
-            return AIExplainability(
+            result = AIExplainability(
                 provider_name=inspection_state.provider_labels.get(selected_provider, selected_provider.title()),
                 provider_id=selected_provider,
                 model_name=model_name,
@@ -281,7 +298,7 @@ def inspect_with_round_robin_llm(
                 confidence=float(parsed.get("confidence", 0.94)),
                 timestamp=datetime.now(timezone.utc).isoformat()
             )
-    except Exception as primary_err:
+    except Exception:
         # Failover to the next available provider in round robin
         alternatives = [p for p in inspection_state.providers_order if p != selected_provider]
         for alt_id in alternatives:
@@ -289,7 +306,7 @@ def inspect_with_round_robin_llm(
             if alt_fn:
                 try:
                     parsed, model_name = alt_fn(text)
-                    return AIExplainability(
+                    result = AIExplainability(
                         provider_name=inspection_state.provider_labels.get(alt_id, alt_id.title()),
                         provider_id=alt_id,
                         model_name=model_name,
@@ -304,11 +321,17 @@ def inspect_with_round_robin_llm(
                         confidence=float(parsed.get("confidence", 0.91)),
                         timestamp=datetime.now(timezone.utc).isoformat()
                     )
+                    break
                 except Exception:
                     continue
 
-    # Deterministic resilient fallback if network is completely offline
-    return _create_fallback_explainability(text, selected_provider, turn)
+    if not result:
+        # Deterministic resilient fallback if network is completely offline
+        result = _create_fallback_explainability(text, selected_provider, turn)
+
+    # Store in memory cache
+    _INSPECTION_CACHE[cache_key] = (now_ts, result)
+    return result
 
 
 # Backward compatibility class

@@ -38,8 +38,27 @@ from backend.pipeline.authorization_gate import evaluate_gate_decision
 from backend.pipeline.llm_classifier import inspect_with_round_robin_llm
 
 
+_CACHED_POLICY: Optional[FirewallPolicy] = None
+_CACHED_POLICY_TIME: float = 0.0
+_POLICY_TTL_SECONDS: float = 60.0
+
+
+def invalidate_policy_cache() -> None:
+    """Invalidates the in-memory policy cache when policies are updated."""
+    global _CACHED_POLICY, _CACHED_POLICY_TIME
+    _CACHED_POLICY = None
+    _CACHED_POLICY_TIME = 0.0
+
+
 def get_active_policy() -> FirewallPolicy:
-    """Retrieves current active policy from database or returns safe defaults."""
+    """Retrieves current active policy with in-memory caching to minimize database reads."""
+    global _CACHED_POLICY, _CACHED_POLICY_TIME
+    import time
+
+    now = time.time()
+    if _CACHED_POLICY is not None and (now - _CACHED_POLICY_TIME) < _POLICY_TTL_SECONDS:
+        return _CACHED_POLICY
+
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM policies ORDER BY id DESC LIMIT 1")
@@ -47,7 +66,7 @@ def get_active_policy() -> FirewallPolicy:
     conn.close()
 
     if not row:
-        return FirewallPolicy(
+        policy = FirewallPolicy(
             max_single_transfer=2500.0,
             daily_transfer_limit=5000.0,
             approved_recipients=["Rahul", "Priya", "Maya", "Vikram", "Suhas", "*"],
@@ -60,22 +79,26 @@ def get_active_policy() -> FirewallPolicy:
             updated_at=datetime.now(timezone.utc).isoformat(),
             simulation_mode=True
         )
+    else:
+        r = dict(row)
+        approved = json.loads(r["approved_recipients"]) if isinstance(r["approved_recipients"], str) else r["approved_recipients"]
+        policy = FirewallPolicy(
+            max_single_transfer=float(r["max_single_transfer"]),
+            daily_transfer_limit=float(r["daily_transfer_limit"]),
+            approved_recipients=approved,
+            unknown_recipient_action=r["unknown_recipient_action"],
+            block_high_risk=bool(r["block_high_risk"]),
+            require_explicit_confirmation=bool(r["require_explicit_confirmation"]),
+            max_input_length=int(r["max_input_length"]),
+            strict_homoglyph_filtering=bool(r["strict_homoglyph_filtering"]),
+            version=r["version"],
+            updated_at=r["updated_at"],
+            simulation_mode=True
+        )
 
-    r = dict(row)
-    approved = json.loads(r["approved_recipients"]) if isinstance(r["approved_recipients"], str) else r["approved_recipients"]
-    return FirewallPolicy(
-        max_single_transfer=float(r["max_single_transfer"]),
-        daily_transfer_limit=float(r["daily_transfer_limit"]),
-        approved_recipients=approved,
-        unknown_recipient_action=r["unknown_recipient_action"],
-        block_high_risk=bool(r["block_high_risk"]),
-        require_explicit_confirmation=bool(r["require_explicit_confirmation"]),
-        max_input_length=int(r["max_input_length"]),
-        strict_homoglyph_filtering=bool(r["strict_homoglyph_filtering"]),
-        version=r["version"],
-        updated_at=r["updated_at"],
-        simulation_mode=True
-    )
+    _CACHED_POLICY = policy
+    _CACHED_POLICY_TIME = now
+    return policy
 
 
 def run_pipeline(

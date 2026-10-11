@@ -17,25 +17,36 @@ from backend.schemas import (
 )
 
 
+# Pre-compiled regular expressions for entity parsing
+AMOUNT_PATTERN = re.compile(
+    r'(?:(?P<sym>[\₹\$\€\£]|(?:rs\.?|inr)\b)\s*)?(?P<num>\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\b\d+(?:\.\d{1,2})?)\b\s*(?:(?P<code_post>INR|rupees?|rupee|rs\.?|USD|EUR|GBP|dollars?|bucks?|cents?)\b)?',
+    re.IGNORECASE
+)
+NOISE_TX_PATTERN = re.compile(r'(?i)\b(?:last|recent|past)\s+(\d+)\s+transactions\b')
+NOISE_2FA_PATTERN = re.compile(r'(?i)\b\d+fa\b')
+TRANSFER_CUE_PATTERN = re.compile(r'(?i)\b(?:transfer|send|wire|pay|give|remit)\b')
+PRONOUN_PATTERN = re.compile(r'(?i)\b(?:to\s+)?(him|her|them|someone|this\s+person|account)\b')
+TO_PRONOUN_PATTERN = re.compile(r'(?i)\bto\s+(him|her|them|someone|account)\b')
+TO_MATCH_PATTERN = re.compile(
+    r'(?i)\b(?:to|unto)\s+([A-Za-z][A-Za-z0-9_\-\.]*(?:\s+[A-Za-z][A-Za-z0-9_\-\.]*)*?)(?:\s+(?:for|memo|note|message|with|using|via|from|as|because|at|on|\d|\$|\₹|rs\.?)\b|$)'
+)
+SEND_MATCH_PATTERN = re.compile(
+    r'(?i)\b(?:pay|send|transfer|wire|remit)\s+([A-Za-z][A-Za-z0-9_\-\.]*(?:\s+[A-Za-z][A-Za-z0-9_\-\.]*)*?)(?:\s+(?:for|memo|note|with|to|\$|\₹|rs\.?|inr|usd)?\s*\d+|$)'
+)
+MEMO_MATCH_PATTERN = re.compile(r'(?i)\b(?:memo|for|note|message)\s*[:=]?\s*["\']?([^"\']+)["\']?$')
+
+
 def extract_amount_and_currency(text: str) -> Tuple[Optional[float], Optional[str], List[str]]:
     """Extracts financial amounts and currencies, defaulting to INR (₹ / Rupees)."""
     ambiguity_flags = []
-
-    # Currency symbols and codes: ₹, Rs, Rs., INR, $, USD, €, GBP, etc.
-    # Examples: ₹500, Rs 500, Rs.500, 500 INR, 500 rupees, 500 rs, 500, $500
-    pattern = re.compile(
-        r'(?:(?P<sym>[\₹\$\€\£]|(?:rs\.?|inr)\b)\s*)?(?P<num>\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\b\d+(?:\.\d{1,2})?)\b\s*(?:(?P<code_post>INR|rupees?|rupee|rs\.?|USD|EUR|GBP|dollars?|bucks?|cents?)\b)?',
-        re.IGNORECASE
-    )
-
     amounts = []
     currencies = []
 
-    # Common noise numbers like "2fa", "3 transactions" or "last 5 transactions"
-    text_clean = re.sub(r'(?i)\b(?:last|recent|past)\s+(\d+)\s+transactions\b', '', text)
-    text_clean = re.sub(r'(?i)\b\d+fa\b', '', text_clean)
+    # Strip noise phrases like "last 5 transactions" or "2fa"
+    text_clean = NOISE_TX_PATTERN.sub('', text)
+    text_clean = NOISE_2FA_PATTERN.sub('', text_clean)
 
-    for m in pattern.finditer(text_clean):
+    for m in AMOUNT_PATTERN.finditer(text_clean):
         num_str = m.group("num")
         sym = (m.group("sym") or "").strip().lower()
         code_post = (m.group("code_post") or "").strip().lower()
@@ -44,7 +55,7 @@ def extract_amount_and_currency(text: str) -> Tuple[Optional[float], Optional[st
             continue
 
         has_currency_indicator = bool(sym or code_post)
-        has_transfer_cue = bool(re.search(r'(?i)\b(?:transfer|send|wire|pay|give|remit)\b', text))
+        has_transfer_cue = bool(TRANSFER_CUE_PATTERN.search(text))
 
         if not has_currency_indicator and not has_transfer_cue:
             continue
@@ -89,26 +100,20 @@ def extract_recipient(text: str) -> Tuple[Optional[str], List[str]]:
     text_clean = text.strip()
 
     # Pronoun checks
-    pronoun_match = re.search(r'(?i)\b(?:to\s+)?(him|her|them|someone|this\s+person|account)\b', text_clean)
-    if pronoun_match and re.search(r'(?i)\bto\s+(him|her|them|someone|account)\b', text_clean):
+    pronoun_match = PRONOUN_PATTERN.search(text_clean)
+    if pronoun_match and TO_PRONOUN_PATTERN.search(text_clean):
         ambiguity_flags.append(f"Ambiguous pronoun '{pronoun_match.group(1)}' used instead of a named recipient")
         return None, ambiguity_flags
 
     # 1. Primary: "to <Name>" (e.g. "send 500 to Suhas", "transfer ₹250 to Priya Patel for catering")
-    to_match = re.search(
-        r'(?i)\b(?:to|unto)\s+([A-Za-z][A-Za-z0-9_\-\.]*(?:\s+[A-Za-z][A-Za-z0-9_\-\.]*)*?)(?:\s+(?:for|memo|note|message|with|using|via|from|as|because|at|on|\d|\$|\₹|rs\.?)\b|$)',
-        text_clean
-    )
+    to_match = TO_MATCH_PATTERN.search(text_clean)
     if to_match:
         cand = to_match.group(1).strip().rstrip('.,;:!?')
         if cand.lower() not in {'my', 'the', 'a', 'an', 'our', 'his', 'her', 'their', 'checking', 'savings', 'account', 'money', 'funds', 'cash', 'balance'}:
             return cand, ambiguity_flags
 
     # 2. Secondary: "send/pay <Name> [Amount]" (e.g. "send Suhas 500", "pay Rahul ₹200")
-    send_match = re.search(
-        r'(?i)\b(?:pay|send|transfer|wire|remit)\s+([A-Za-z][A-Za-z0-9_\-\.]*(?:\s+[A-Za-z][A-Za-z0-9_\-\.]*)*?)(?:\s+(?:for|memo|note|with|to|\$|\₹|rs\.?|inr|usd)?\s*\d+|$)',
-        text_clean
-    )
+    send_match = SEND_MATCH_PATTERN.search(text_clean)
     if send_match:
         cand = send_match.group(1).strip().rstrip('.,;:!?')
         if cand.lower() not in {'my', 'the', 'a', 'an', 'our', 'his', 'her', 'their', 'checking', 'savings', 'account', 'money', 'funds', 'cash', 'balance', 'please', 'can', 'you'}:
@@ -125,11 +130,9 @@ def extract_recipient(text: str) -> Tuple[Optional[str], List[str]]:
 
 def extract_memo(text: str) -> Optional[str]:
     """Extracts memo/note payload and enforces untrusted metadata isolation."""
-    # Look for "memo: ...", "for ...", "note: ..."
-    memo_match = re.search(r'(?i)\b(?:memo|for|note|message)\s*[:=]?\s*["\']?([^"\']+)["\']?$', text)
+    memo_match = MEMO_MATCH_PATTERN.search(text)
     if memo_match:
         memo_raw = memo_match.group(1).strip()
-        # Truncate and strip quotes
         return memo_raw[:200]
     return None
 

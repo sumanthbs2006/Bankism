@@ -16,8 +16,14 @@ from backend.config import (
 
 
 def get_db_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    """Creates an optimized SQLite connection with WAL mode and memory cache."""
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA cache_size = -64000")
+    conn.execute("PRAGMA temp_store = MEMORY")
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -132,6 +138,16 @@ def init_db(reset: bool = False):
             last_login TEXT NOT NULL
         )
     """)
+
+    # 7. High-Performance Indexes for Audit Logs and Transactions
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs (timestamp)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_decision ON audit_logs (decision)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_risk ON audit_logs (risk_level)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_logs (session_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_request ON audit_logs (request_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tx_timestamp ON transactions (timestamp)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tx_source_account ON transactions (source_account_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users (email)")
 
     conn.commit()
 
