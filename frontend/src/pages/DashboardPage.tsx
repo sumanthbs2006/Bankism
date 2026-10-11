@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Activity,
   ShieldCheck,
   AlertOctagon,
   AlertTriangle,
-  RefreshCw,
   TrendingUp,
   BarChart2,
   IndianRupee,
   PieChart as PieIcon
 } from 'lucide-react';
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  Legend,
   XAxis,
   YAxis,
   Tooltip,
@@ -24,11 +25,12 @@ import {
 import { api } from '../api';
 import { DashboardMetrics, AccountInfo } from '../types';
 
+const PIE_COLORS = ['#c53b3b', '#c27803', '#b45e35', '#7c4a88', '#8e5c36', '#2c6590', '#2d7a48'];
+
 export const DashboardPage: React.FC = () => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchMetricsAndAccounts = async () => {
@@ -44,7 +46,6 @@ export const DashboardPage: React.FC = () => {
       setError(err.message || 'Failed to load telemetry');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -54,18 +55,13 @@ export const DashboardPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleManualRefresh = () => {
-    setRefreshing(true);
-    fetchMetricsAndAccounts();
-  };
-
-  const pieData = metrics?.threat_distribution
-    ? Object.entries(metrics.threat_distribution)
-        .filter(([cat]) => cat !== 'NONE')
-        .map(([name, value]) => ({ name: name.replace(/_/g, ' '), value }))
-    : [];
-
-  const PIE_COLORS = ['#c53b3b', '#c27803', '#b45e35', '#7c4a88', '#8e5c36', '#2c6590', '#2d7a48'];
+  const threatDist = metrics?.threat_distribution;
+  const pieData = useMemo(() => {
+    if (!threatDist) return [];
+    return Object.entries(threatDist)
+      .filter(([cat]) => cat !== 'NONE')
+      .map(([name, value]) => ({ name: name.replace(/_/g, ' '), value }));
+  }, [threatDist]);
 
   if (loading && !metrics) {
     return (
@@ -89,21 +85,6 @@ export const DashboardPage: React.FC = () => {
           <p className="text-[#64748b] text-sm mt-1">
             Real-time security telemetry dynamically computed from stored SQLite audit events & mock ledger transactions.
           </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-semibold bg-[#edf6ef] text-[#2d7a48] border border-[#c7e4cc] shadow-apple-button">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#2d7a48] animate-pulse" />
-            {metrics?.firewall_status || 'ACTIVE - ENFORCING'}
-          </span>
-
-          <button
-            onClick={handleManualRefresh}
-            className="apple-pressable p-2 rounded-full bg-[#ffffff] hover:bg-[#f1f5f9] text-[#0f172a] border border-[#cbd5e1]/20 shadow-apple-button"
-            title="Refresh Telemetry"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       </div>
 
@@ -178,45 +159,110 @@ export const DashboardPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-semibold text-[#0f172a] tracking-tight flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-[#b45e35]" />
+                <BarChart2 className="w-4 h-4 text-[#2563eb]" />
                 Request Volume & Blocked Threats
               </h3>
               <p className="text-xs text-[#64748b] mt-0.5">
-                Hourly activity trace across simulated requests
+                Hourly activity trace: scanned banking prompts vs. neutralized prompt injections
               </p>
             </div>
-            <span className="text-[11px] font-mono text-[#64748b]">24-Hour Horizon</span>
+            <span className="text-[11px] font-mono text-[#64748b] px-2.5 py-1 rounded-full bg-[#f1f5f9] border border-[#cbd5e1]/40">
+              24-Hour Horizon
+            </span>
           </div>
 
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={metrics?.volume_by_hour || []}>
-                <defs>
-                  <linearGradient id="colorReq" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#b45e35" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#b45e35" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorBlock" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#c53b3b" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#c53b3b" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="hour" stroke="#64748b" fontSize={11} tickLine={false} axisLine={{ stroke: 'rgba(160,125,95,0.18)' }} />
-                <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={{ stroke: 'rgba(160,125,95,0.18)' }} />
+              <BarChart data={metrics?.volume_by_hour || []} barGap={4}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(203, 213, 225, 0.4)" />
+                <XAxis
+                  dataKey="hour"
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: 'rgba(203, 213, 225, 0.6)' }}
+                />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={11}
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={{ stroke: 'rgba(203, 213, 225, 0.6)' }}
+                />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderColor: 'rgba(160, 125, 95, 0.25)',
-                    borderRadius: '16px',
-                    fontSize: '12px',
-                    boxShadow: '0 8px 30px rgba(100, 70, 45, 0.1)',
-                    color: '#0f172a'
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const total = Number(payload[0]?.value || 0);
+                      const blocked = Number(payload[1]?.value || 0);
+                      const safe = Math.max(0, total - blocked);
+                      return (
+                        <div className="bg-white border border-[#cbd5e1] rounded-2xl p-3.5 shadow-apple-elevated text-xs space-y-2 font-sans">
+                          <div className="font-mono font-bold text-[#0f172a] border-b border-[#cbd5e1]/40 pb-1 flex items-center justify-between gap-4">
+                            <span>Time Slot: {label}</span>
+                            <span className="text-[10px] text-[#2563eb] bg-[#eff6ff] px-1.5 py-0.5 rounded font-mono">Telemetry</span>
+                          </div>
+                          <div className="space-y-1.5 font-mono text-[11px]">
+                            <div className="flex items-center justify-between gap-4 text-[#2563eb]">
+                              <span>Total Prompts Scanned:</span>
+                              <strong>{total}</strong>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 text-[#dc2626]">
+                              <span>Malicious Injections Blocked:</span>
+                              <strong>{blocked}</strong>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 text-[#16a34a]">
+                              <span>Safe Transactions Executed:</span>
+                              <strong>{safe}</strong>
+                            </div>
+                          </div>
+                          <div className="pt-1.5 border-t border-[#cbd5e1]/40 text-[10px]">
+                            {blocked > 0 ? (
+                              <span className="text-[#dc2626] font-semibold">⚠️ Attacks neutralized by firewall</span>
+                            ) : (
+                              <span className="text-[#16a34a] font-semibold">✓ Normal operations verified</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
                   }}
                 />
-                <Area type="monotone" dataKey="requests" stroke="#b45e35" strokeWidth={2} fillOpacity={1} fill="url(#colorReq)" name="Total Requests" />
-                <Area type="monotone" dataKey="blocks" stroke="#c53b3b" strokeWidth={2} fillOpacity={1} fill="url(#colorBlock)" name="Blocked Threats" />
-              </AreaChart>
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  wrapperStyle={{ paddingBottom: '10px', fontSize: '11px' }}
+                />
+                <Bar
+                  dataKey="requests"
+                  name="Total Prompts Scanned"
+                  fill="#2563eb"
+                  radius={[5, 5, 0, 0]}
+                  maxBarSize={30}
+                />
+                <Bar
+                  dataKey="blocks"
+                  name="Malicious Threats Blocked"
+                  fill="#dc2626"
+                  radius={[5, 5, 0, 0]}
+                  maxBarSize={30}
+                />
+              </BarChart>
             </ResponsiveContainer>
+          </div>
+
+          {/* Presenter & Evaluator Simple Explanation Strip */}
+          <div className="p-3.5 rounded-2xl bg-white/70 border border-[#cbd5e1]/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-[#475569]">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#2563eb] shrink-0" />
+              <span><strong>Blue Bar:</strong> Total evaluated banking prompts</span>
+              <span className="text-[#cbd5e1]">|</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#dc2626] shrink-0" />
+              <span><strong>Red Bar:</strong> Adversarial attacks blocked</span>
+            </div>
+            <div className="text-[11px] font-mono text-[#16a34a] bg-[#edf6ef] px-2.5 py-0.5 rounded-full border border-[#c7e4cc]">
+              Difference = Legitimate transfers approved
+            </div>
           </div>
         </div>
 

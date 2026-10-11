@@ -274,6 +274,8 @@ export interface ChatResponsePayload {
 }
 
 export interface ChatStatusPayload {
+  session_id?: string;
+  active_session_provider?: 'gemini' | 'groq' | 'openai';
   providers: {
     gemini: { name: string; configured: boolean; model: string; status: string };
     groq: { name: string; configured: boolean; model: string; status: string };

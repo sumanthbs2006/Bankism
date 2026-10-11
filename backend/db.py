@@ -3,7 +3,7 @@
 import sqlite3
 import json
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from backend.config import (
     DB_PATH,
     DEFAULT_MAX_SINGLE_TRANSFER,

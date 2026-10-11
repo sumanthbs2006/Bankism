@@ -12,6 +12,20 @@ import {
 
 const API_BASE = '/api';
 
+// Session ID generation for round-robin model rotation across sessions
+function generateSessionId(): string {
+  return 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+}
+
+let activeChatSessionId = generateSessionId();
+
+export const getActiveChatSessionId = () => activeChatSessionId;
+
+export const resetChatSession = () => {
+  activeChatSessionId = generateSessionId();
+  return activeChatSessionId;
+};
+
 export const api = {
   async inspectRequest(message: string, sessionId = 'demo-session-1', accountId = 'CHK-9021', providerMode = 'round_robin'): Promise<FirewallVerdict> {
     const res = await fetch(`${API_BASE}/firewall/inspect`, {
@@ -149,18 +163,29 @@ export const api = {
     return res.json();
   },
 
+  getChatSessionId(): string {
+    return activeChatSessionId;
+  },
+
+  resetChatSession(): string {
+    return resetChatSession();
+  },
+
   async sendChatMessage(params: {
     message: string;
     history?: { role: 'user' | 'assistant'; content: string }[];
     provider_mode?: 'round_robin' | 'gemini' | 'groq' | 'openai';
+    session_id?: string;
   }): Promise<import('./types').ChatResponsePayload> {
+    const sessionId = params.session_id || activeChatSessionId;
     const res = await fetch(`${API_BASE}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: params.message,
         history: params.history || [],
-        provider_mode: params.provider_mode || 'round_robin'
+        provider_mode: params.provider_mode || 'round_robin',
+        session_id: sessionId
       })
     });
     if (!res.ok) {
@@ -170,8 +195,9 @@ export const api = {
     return res.json();
   },
 
-  async getChatStatus(): Promise<import('./types').ChatStatusPayload> {
-    const res = await fetch(`${API_BASE}/chat/status`);
+  async getChatStatus(sessionId?: string): Promise<import('./types').ChatStatusPayload> {
+    const sId = sessionId || activeChatSessionId;
+    const res = await fetch(`${API_BASE}/chat/status?session_id=${encodeURIComponent(sId)}`);
     if (!res.ok) throw new Error('Failed to fetch chat status');
     return res.json();
   }

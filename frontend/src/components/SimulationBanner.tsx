@@ -1,5 +1,4 @@
-import React from 'react';
-import { ShieldAlert, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 interface SimulationBannerProps {
   onResetData?: () => void;

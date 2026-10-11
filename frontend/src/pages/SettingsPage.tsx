@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Sliders,
   Shield,
-  Key,
   CheckCircle2,
   AlertTriangle,
   RotateCcw,
@@ -17,15 +16,11 @@ import { FirewallPolicy } from '../types';
 
 export const SettingsPage: React.FC = () => {
   const [policy, setPolicy] = useState<FirewallPolicy | null>(null);
-  const [operatorToken, setOperatorToken] = useState('demo-operator-token-2026');
+  const operatorToken = 'demo-operator-token-2026';
   const [newRecipientInput, setNewRecipientInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchPolicy();
-  }, []);
 
   const fetchPolicy = async () => {
     try {
@@ -35,6 +30,10 @@ export const SettingsPage: React.FC = () => {
       setSaveError(err.message || 'Failed to fetch policy.');
     }
   };
+
+  useEffect(() => {
+    fetchPolicy();
+  }, []);
 
   const handleAddRecipient = () => {
     if (!newRecipientInput.trim() || !policy) return;

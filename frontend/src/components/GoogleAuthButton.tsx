@@ -61,7 +61,7 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
   const defaultButtonText =
     buttonText || (mode === 'signin' ? 'Sign in with Google' : 'Sign up with Google');
 
-  const handleCredentialResponse = async (response: any) => {
+  const handleCredentialResponse = React.useCallback(async (response: any) => {
     setLoading(true);
     setErrorMessage(null);
     try {
@@ -100,7 +100,7 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [onSuccess]);
 
   useEffect(() => {
     let initialized = false;
@@ -145,7 +145,7 @@ export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
     }, 300);
 
     return () => clearInterval(timer);
-  }, [mode, darkVariant]);
+  }, [mode, darkVariant, handleCredentialResponse]);
 
   const handleDemoGoogleSignIn = async () => {
     setLoading(true);

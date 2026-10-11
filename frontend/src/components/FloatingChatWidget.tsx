@@ -4,11 +4,7 @@ import {
   Sparkles,
   X,
   Send,
-  Bot,
-  Zap,
-  Maximize2,
-  Minimize2,
-  Trash2
+  Maximize2
 } from 'lucide-react';
 import { api } from '../api';
 import { ChatMessage } from '../types';
@@ -19,11 +15,12 @@ interface FloatingChatWidgetProps {
 
 export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({ onOpenFullPage }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [activeProvider, setActiveProvider] = useState<'gemini' | 'groq' | 'openai'>('gemini');
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       id: 'fw-1',
       role: 'assistant',
-      content: 'Welcome to Bankism! How may I assist you?',
+      content: 'Welcome to Bankism! How may I assist you today?',
       provider_used: 'Bankism Assistant',
       provider_id: 'gemini',
       timestamp: new Date().toISOString()
@@ -32,6 +29,17 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({ onOpenFu
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.getChatStatus().then((status) => {
+      if (status.active_session_provider) {
+        setActiveProvider(status.active_session_provider);
+        setMessages((prev) =>
+          prev.map((m, idx) => (idx === 0 && m.id === 'fw-1' ? { ...m, provider_id: status.active_session_provider } : m))
+        );
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -61,6 +69,10 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({ onOpenFu
         provider_mode: 'round_robin'
       });
 
+      if (res.provider_id) {
+        setActiveProvider(res.provider_id);
+      }
+
       const aiMsg: ChatMessage = {
         id: `ai_${Date.now()}`,
         role: 'assistant',
@@ -79,13 +91,21 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({ onOpenFu
         role: 'assistant',
         content: `Error: ${err.message || 'Service temporarily unavailable'}.`,
         provider_used: 'Bankism Assistant',
-        provider_id: 'gemini',
+        provider_id: activeProvider,
         timestamp: new Date().toISOString()
       };
       setMessages((prev) => [...prev, errMsg]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getProviderLabel = (provId?: string) => {
+    const target = provId || activeProvider;
+    if (target === 'gemini') return 'Google Gemini';
+    if (target === 'groq') return 'Groq LLaMA';
+    if (target === 'openai') return 'ChatGPT';
+    return 'Bankism AI';
   };
 
   return (
@@ -120,8 +140,13 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({ onOpenFu
                   <Sparkles className="w-3.5 h-3.5 text-[#f5bd47]" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-[#0f172a]">Bankism Assistant</h3>
-                  <p className="text-[10px] text-[#64748b]">Always online • Instant assistance</p>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-xs font-bold text-[#0f172a]">Bankism Assistant</h3>
+                    <span className="text-[9px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/90 text-[#2563eb] border border-[#cbd5e1]/60">
+                      {getProviderLabel(activeProvider)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-[#64748b]">Session Engine • Cycles on refresh/logout</p>
                 </div>
               </div>
 
@@ -156,9 +181,9 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({ onOpenFu
                   className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
                 >
                   {m.role === 'assistant' && (
-                    <span className="text-[9px] font-semibold text-[#64748b] mb-0.5 ml-1 flex items-center gap-1">
+                    <span className="text-[9px] font-semibold text-[#64748b] mb-0.5 ml-1 flex items-center gap-1 font-mono">
                       <Sparkles className="w-2.5 h-2.5 text-[#f5bd47]" />
-                      Bankism Assistant
+                      {getProviderLabel(m.provider_id)}
                     </span>
                   )}
                   <div

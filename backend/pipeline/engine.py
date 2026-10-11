@@ -19,7 +19,7 @@ VERDICT SERIALIZER & AUDIT LOGGING
 import uuid
 import json
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 from backend.db import get_db_connection
 from backend.schemas import (
     Decision,
@@ -28,8 +28,7 @@ from backend.schemas import (
     OperationType,
     FirewallPolicy,
     FirewallVerdict,
-    PipelineStages,
-    ExtractedEntities
+    PipelineStages
 )
 from backend.pipeline.normalizer import normalize_input
 from backend.pipeline.threat_detector import inspect_threats

@@ -13,7 +13,16 @@ import {
 import { api } from '../api';
 import { FirewallPolicy, AccountInfo } from '../types';
 
-export function validateGenuineRecipient(name: string): { isValid: boolean; error?: string } {
+const DISALLOWED_RECIPIENT_TERMS = [
+  'apple', 'hacker', 'attacker', 'banana', 'orange', 'fruit', 'mango',
+  'admin', 'root', 'bot', 'null', 'undefined', 'test', 'user', 'dummy',
+  'device', 'iphone', 'android', 'computer', 'server', 'system',
+  'malware', 'exploit', 'trojan', 'phish', 'virus', 'evil', 'anon',
+  'anonymous', 'payload', 'wallet', 'unknownattacker666', 'unknown_wallet',
+  'external hacker', 'external_hacker_account'
+];
+
+function validateGenuineRecipient(name: string): { isValid: boolean; error?: string } {
   const trimmed = name.trim();
   if (!trimmed) {
     return { isValid: false, error: "Recipient name is required." };
@@ -31,17 +40,9 @@ export function validateGenuineRecipient(name: string): { isValid: boolean; erro
     return { isValid: false, error: "Recipient name must be at least 2 characters long." };
   }
   // Disallowed non-human, attack, fruit, or placeholder words
-  const disallowedTerms = [
-    'apple', 'hacker', 'attacker', 'banana', 'orange', 'fruit', 'mango',
-    'admin', 'root', 'bot', 'null', 'undefined', 'test', 'user', 'dummy',
-    'device', 'iphone', 'android', 'computer', 'server', 'system',
-    'malware', 'exploit', 'trojan', 'phish', 'virus', 'evil', 'anon',
-    'anonymous', 'payload', 'wallet', 'unknownattacker666', 'unknown_wallet',
-    'external hacker', 'external_hacker_account'
-  ];
   const lower = trimmed.toLowerCase();
   const words = lower.split(/\s+/);
-  for (const term of disallowedTerms) {
+  for (const term of DISALLOWED_RECIPIENT_TERMS) {
     if (words.includes(term) || lower === term || lower.includes(term)) {
       return {
         isValid: false,
@@ -92,7 +93,7 @@ export const ValidationCenterPage: React.FC<ValidationCenterPageProps> = ({ sele
     if (selectedAccount?.account_id) {
       setTestAccount(selectedAccount.account_id);
     }
-  }, [selectedAccount]);
+  }, [selectedAccount?.account_id]);
 
   const recipientStatus = validateGenuineRecipient(testRecipient);
 

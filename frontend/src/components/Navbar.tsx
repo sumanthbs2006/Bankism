@@ -12,10 +12,8 @@ import {
   CreditCard,
   RefreshCw,
   LogOut,
-  User,
   Lock,
   ShieldCheck,
-  Sparkles,
   ChevronDown,
   Check
 } from 'lucide-react';

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Header, Query, Response, status
+from fastapi import FastAPI, HTTPException, Header, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -26,7 +26,6 @@ from backend.schemas import (
     FirewallPolicy,
     PolicyUpdateRequest,
     DashboardMetrics,
-    AuditLogEntry,
     AccountInfo,
     RecipientInfo,
     MockTransaction,
@@ -475,21 +474,24 @@ def chat_endpoint(request: ChatRequest):
 
 
 @app.get("/api/chat/status")
-def chat_status_endpoint():
+def chat_status_endpoint(session_id: Optional[str] = None):
     """Returns real-time status and token distribution metrics across all 3 LLMs."""
     from backend.config import GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY
+    active_prov = round_robin_state.get_session_provider(session_id) if session_id else round_robin_state.providers_order[round_robin_state.session_counter % len(round_robin_state.providers_order)]
     return {
+        "session_id": session_id,
+        "active_session_provider": active_prov,
         "providers": {
             "gemini": {
                 "name": "Google Gemini",
                 "configured": bool(GEMINI_API_KEY),
-                "model": "gemini-flash-latest / gemini-3.8-flash",
+                "model": "gemini-1.5-flash / gemini-2.0-flash",
                 "status": "ONLINE" if bool(GEMINI_API_KEY) else "NO_KEY"
             },
             "groq": {
                 "name": "Groq Cloud",
                 "configured": bool(GROQ_API_KEY),
-                "model": "qwen/qwen3.8-27b / gpt-oss-120b",
+                "model": "llama-3.3-70b / llama-3.1-8b",
                 "status": "ONLINE" if bool(GROQ_API_KEY) else "NO_KEY"
             },
             "openai": {

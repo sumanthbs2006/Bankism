@@ -15,7 +15,7 @@ Context Awareness:
 """
 
 import re
-from typing import List, Tuple
+from typing import List
 from backend.schemas import (
     ThreatCategory,
     RiskLevel,
@@ -26,63 +26,68 @@ from backend.schemas import (
 
 # 1. Prompt Injection Signatures
 PROMPT_INJECTION_PATTERNS = [
-    (r'(?i)\b(?:ignore|disregard|forget|bypass|override|drop)\s+(?:all\s+)?(?:(?:previous|prior|above|former|initial|system|bank)\s+)?(?:instructions|prompts|rules|directives|guidelines|constraints)\b',
+    (re.compile(r'(?i)\b(?:ignore|disregard|forget|bypass|override|drop)\s+(?:all\s+)?(?:(?:previous|prior|above|former|initial|system|bank)\s+)?(?:instructions|prompts|rules|directives|guidelines|constraints)\b'),
      "Explicit directive to disregard prior system instructions.", RiskLevel.CRITICAL),
-    (r'(?i)\b(?:new\s+instructions|system\s+update|developer\s+mode|root\s+access)\s*:\s*',
+    (re.compile(r'(?i)\b(?:new\s+instructions|system\s+update|developer\s+mode|root\s+access)\s*:\s*'),
      "Attempted system instruction injection header.", RiskLevel.CRITICAL),
-    (r'(?i)\b(?:you\s+must\s+now|from\s+now\s+on\s+you\s+will|your\s+new\s+role\s+is\s+to)\s+(?:ignore|execute|transfer|bypass)\b',
+    (re.compile(r'(?i)\b(?:you\s+must\s+now|from\s+now\s+on\s+you\s+will|your\s+new\s+role\s+is\s+to)\s+(?:ignore|execute|transfer|bypass)\b'),
      "Imperative instruction realignment attempting override.", RiskLevel.HIGH),
-    (r'(?i)<\s*\|\s*(?:im_start|im_end|system|developer|user|assistant)\s*\|?\s*>',
+    (re.compile(r'(?i)<\s*\|\s*(?:im_start|im_end|system|developer|user|assistant)\s*\|?\s*>'),
      "Chat template delimiter injection attempt.", RiskLevel.CRITICAL),
-    (r'(?i)\[\s*(?:system|developer|admin|root|superuser)\s*(?:override|instruction|message)?\s*\]',
+    (re.compile(r'(?i)\[\s*(?:system|developer|admin|root|superuser)\s*(?:override|instruction|message)?\s*\]'),
      "Bracketed pseudo-system prompt tag injection.", RiskLevel.CRITICAL),
-    (r'(?i)\bdo\s+not\s+follow\s+(?:any\s+)?(?:rules|policies|guardrails|safety\s+checks)\b',
+    (re.compile(r'(?i)\bdo\s+not\s+follow\s+(?:any\s+)?(?:rules|policies|guardrails|safety\s+checks)\b'),
      "Explicit command to drop safety guardrails.", RiskLevel.CRITICAL),
 ]
 
 # 2. Jailbreak Signatures
 JAILBREAK_PATTERNS = [
-    (r'(?i)\b(?:you\s+are(?:\s+now)?|act\s+as|pretend\s+to\s+be)\s+(?:DAN|AIM|an\s+unrestricted|a\s+jailbroken|evil\s+AI|godmode)\b',
+    (re.compile(r'(?i)\b(?:you\s+are(?:\s+now)?|act\s+as|pretend\s+to\s+be)\s+(?:DAN|AIM|an\s+unrestricted|a\s+jailbroken|evil\s+AI|godmode)\b'),
      "Jailbreak persona adoption pattern (e.g. DAN/unrestricted).", RiskLevel.CRITICAL),
-    (r'(?i)\b(?:DAN|AIM)\s*[,:]?\s*(?:an\s+unrestricted|a\s+jailbroken)\b',
+    (re.compile(r'(?i)\b(?:DAN|AIM)\s*[,:]?\s*(?:an\s+unrestricted|a\s+jailbroken)\b'),
      "DAN/AIM unrestricted jailbreak persona identifier.", RiskLevel.CRITICAL),
-    (r'(?i)\b(?:in\s+a\s+fictional\s+universe|hypothetically\s+speaking|for\s+a\s+movie\s+script|in\s+an\s+alternate\s+reality)\s*[,:]?\s*(?:where\s+limits\s+don\'?t\s+apply|there\s+are\s+no\s+rules|transfer)\b',
+    (re.compile(r'(?i)\b(?:in\s+a\s+fictional\s+universe|hypothetically\s+speaking|for\s+a\s+movie\s+script|in\s+an\s+alternate\s+reality)\s*[,:]?\s*(?:where\s+limits\s+don\'?t\s+apply|there\s+are\s+no\s+rules|transfer)\b'),
      "Fictional scenario framing attempting policy evasion.", RiskLevel.HIGH),
-    (r'(?i)\b(?:grandma\s+exploit|pretend\s+my\s+grandmother|as\s+a\s+bedtime\s+story)\b',
+    (re.compile(r'(?i)\b(?:grandma\s+exploit|pretend\s+my\s+grandmother|as\s+a\s+bedtime\s+story)\b'),
      "Grandma/story exploit pattern.", RiskLevel.HIGH),
-    (r'(?i)\bact\s+as\s+(?:the\s+)?(?:bank\s+ceo|superadmin|root\s+administrator|system\s+architect)\s+and\s+(?:authorize|send|wire)\b',
+    (re.compile(r'(?i)\bact\s+as\s+(?:the\s+)?(?:bank\s+ceo|superadmin|root\s+administrator|system\s+architect)\s+and\s+(?:authorize|send|wire)\b'),
      "Executive authority impersonation jailbreak.", RiskLevel.CRITICAL),
 ]
 
 # 3. Policy Override & Safety Disabling
 POLICY_OVERRIDE_PATTERNS = [
-    (r'(?i)\b(?:disable|turn\s+off|shut\s+down|bypass|deactivate|skip)\s+(?:the\s+)?(?:firewall|safety\s+filter|guardrails?|daily\s+limits?|verification|2fa|otp|compliance|audit)\b',
+    (re.compile(r'(?i)\b(?:disable|turn\s+off|shut\s+down|bypass|deactivate|skip)\s+(?:the\s+)?(?:firewall|safety\s+filter|guardrails?|daily\s+limits?|verification|2fa|otp|compliance|audit)\b'),
      "Direct command to disable security controls or daily limits.", RiskLevel.CRITICAL),
-    (r'(?i)\b(?:temporary|emergency|admin)\s+limit\s+is\s+now\s+[\$0-9,\.]+',
+    (re.compile(r'(?i)\b(?:temporary|emergency|admin)\s+limit\s+is\s+now\s+[\$0-9,\.]+'),
      "Attempt to redefine transfer limits in prompt.", RiskLevel.CRITICAL),
-    (r'(?i)\b(?:set|change|update)\s+(?:max|daily)\s+limit\s+to\s+(?:unlimited|[\$0-9,\.]+)\b',
+    (re.compile(r'(?i)\b(?:set|change|update)\s+(?:max|daily)\s+limit\s+to\s+(?:unlimited|[\$0-9,\.]+)\b'),
      "Attempt to modify policy limits via conversational input.", RiskLevel.CRITICAL),
-    (r'(?i)\b(?:redefine|treat|alias|register)\s+[A-Za-z]+\s+(?:as|is\s+now)\s+(?:account|recipient|trusted)\b',
+    (re.compile(r'(?i)\b(?:redefine|treat|alias|register)\s+[A-Za-z]+\s+(?:as|is\s+now)\s+(?:account|recipient|trusted)\b'),
      "Attempt to redefine recipient allowlists via message.", RiskLevel.CRITICAL),
-    (r'(?i)\b(?:authenticate|authorize)\s+as\s+(?:admin|root|superuser|bank_manager)\b',
+    (re.compile(r'(?i)\b(?:authenticate|authorize)\s+as\s+(?:admin|root|superuser|bank_manager)\b'),
      "Identity verification privilege escalation bypass.", RiskLevel.CRITICAL),
 ]
 
 # 4. Memo Injection Signatures (Prompt injection hidden inside memo parameter)
 MEMO_INJECTION_PATTERNS = [
-    (r'(?i)memo\s*[:=]\s*["\']?.*(?:override|ignore|bypass|admin_override|auto_approve|confirm_bypass|execute_without_checks).*["\']?',
+    (re.compile(r'(?i)memo\s*[:=]\s*["\']?.*(?:override|ignore|bypass|admin_override|auto_approve|confirm_bypass|execute_without_checks).*["\']?'),
      "Adversarial policy override injected into transaction memo.", RiskLevel.CRITICAL),
-    (r'(?i)memo\s*[:=]\s*["\']?.*(?:system\s+override|transfer\s+all|send\s+bonus|unlimited).*["\']?',
+    (re.compile(r'(?i)memo\s*[:=]\s*["\']?.*(?:system\s+override|transfer\s+all|send\s+bonus|unlimited).*["\']?'),
      "Elevated privileged instruction disguised inside payment memo.", RiskLevel.HIGH),
 ]
 
 # 5. Data Exfiltration / Secret Disclosure
 DATA_EXFILTRATION_PATTERNS = [
-    (r'(?i)\b(?:reveal|print|show|output|leak|repeat|dump)\s+(?:your\s+)?(?:system\s+prompt|initial\s+prompt|developer\s+instructions|secret\s+key|api\s+key|password|jwt)\b',
+    (re.compile(r'(?i)\b(?:reveal|print|show|output|leak|repeat|dump)\s+(?:your\s+)?(?:system\s+prompt|initial\s+prompt|developer\s+instructions|secret\s+key|api\s+key|password|jwt)\b'),
      "System prompt or secret extraction attempt.", RiskLevel.HIGH),
-    (r'(?i)\b(?:what\s+are\s+your|tell\s+me\s+your)\s+(?:hidden\s+rules|system\s+instructions|internal\s+prompts)\b',
+    (re.compile(r'(?i)\b(?:what\s+are\s+your|tell\s+me\s+your)\s+(?:hidden\s+rules|system\s+instructions|internal\s+prompts)\b'),
      "Inquiry attempting to extract model system configuration.", RiskLevel.MEDIUM),
 ]
+
+BENIGN_SECURITY_INQUIRY_RE = re.compile(
+    r'(?i)\b(?:check|review|view|show|what\s+are|explain)\s+(?:my\s+)?(?:account\s+)?(?:security\s+settings|security\s+status|policies)\b'
+)
+DISARM_BYPASS_RE = re.compile(r'(?i)\b(?:disable|bypass|override|turn\s+off|ignore)\b')
 
 
 def inspect_threats(
@@ -121,7 +126,7 @@ def inspect_threats(
 
     # 2. Check Prompt Injection Patterns (inspect normalized text)
     for pattern, desc, sev in PROMPT_INJECTION_PATTERNS:
-        match = re.search(pattern, normalized_text)
+        match = pattern.search(normalized_text)
         if match:
             signals.append(ThreatSignal(
                 category=ThreatCategory.PROMPT_INJECTION,
@@ -136,7 +141,7 @@ def inspect_threats(
 
     # 3. Check Jailbreak Patterns
     for pattern, desc, sev in JAILBREAK_PATTERNS:
-        match = re.search(pattern, normalized_text)
+        match = pattern.search(normalized_text)
         if match:
             signals.append(ThreatSignal(
                 category=ThreatCategory.JAILBREAK,
@@ -152,14 +157,11 @@ def inspect_threats(
     # 4. Check Policy Override Patterns (Context-Aware Check)
     # If the user is merely asking "how do security settings work?" or "show my security settings",
     # that is NOT a policy override.
-    is_benign_security_inquiry = bool(re.search(
-        r'(?i)\b(?:check|review|view|show|what\s+are|explain)\s+(?:my\s+)?(?:account\s+)?(?:security\s+settings|security\s+status|policies)\b',
-        normalized_text
-    )) and not bool(re.search(r'(?i)\b(?:disable|bypass|override|turn\s+off|ignore)\b', normalized_text))
+    is_benign_security_inquiry = bool(BENIGN_SECURITY_INQUIRY_RE.search(normalized_text)) and not bool(DISARM_BYPASS_RE.search(normalized_text))
 
     if not is_benign_security_inquiry:
         for pattern, desc, sev in POLICY_OVERRIDE_PATTERNS:
-            match = re.search(pattern, normalized_text)
+            match = pattern.search(normalized_text)
             if match:
                 signals.append(ThreatSignal(
                     category=ThreatCategory.POLICY_OVERRIDE,
@@ -174,7 +176,7 @@ def inspect_threats(
 
     # 5. Check Memo Injection Patterns
     for pattern, desc, sev in MEMO_INJECTION_PATTERNS:
-        match = re.search(pattern, normalized_text)
+        match = pattern.search(normalized_text)
         if match:
             signals.append(ThreatSignal(
                 category=ThreatCategory.MEMO_INJECTION,
@@ -189,7 +191,7 @@ def inspect_threats(
 
     # 6. Check Data Exfiltration Patterns
     for pattern, desc, sev in DATA_EXFILTRATION_PATTERNS:
-        match = re.search(pattern, normalized_text)
+        match = pattern.search(normalized_text)
         if match:
             signals.append(ThreatSignal(
                 category=ThreatCategory.DATA_EXFILTRATION_ATTEMPT,

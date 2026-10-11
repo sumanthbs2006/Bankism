@@ -11,8 +11,7 @@ Rules:
 4. Raw natural language or memo text has zero authority.
 """
 
-from typing import Tuple, Optional, Dict, Any
-import json
+from typing import Tuple, Optional
 from backend.schemas import (
     Decision,
     AuthorizationGateStageResult,

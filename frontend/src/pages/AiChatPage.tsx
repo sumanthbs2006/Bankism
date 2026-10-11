@@ -14,11 +14,12 @@ import { api } from '../api';
 import { ChatMessage } from '../types';
 
 export const AiChatPage: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [activeProvider, setActiveProvider] = useState<'gemini' | 'groq' | 'openai'>('gemini');
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       id: 'init-1',
       role: 'assistant',
-      content: 'Welcome to Bankism! How may I assist you?',
+      content: 'Welcome to Bankism! How may I assist you with your accounts or transfers today?',
       provider_used: 'Bankism Assistant',
       provider_id: 'gemini',
       timestamp: new Date().toISOString()
@@ -31,6 +32,17 @@ export const AiChatPage: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    api.getChatStatus().then((status) => {
+      if (status.active_session_provider) {
+        setActiveProvider(status.active_session_provider);
+        setMessages((prev) =>
+          prev.map((m, idx) => (idx === 0 && m.id === 'init-1' ? { ...m, provider_id: status.active_session_provider } : m))
+        );
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -63,6 +75,10 @@ export const AiChatPage: React.FC = () => {
         provider_mode: 'round_robin'
       });
 
+      if (res.provider_id) {
+        setActiveProvider(res.provider_id);
+      }
+
       const assistantMsg: ChatMessage = {
         id: `ai_${Date.now()}`,
         role: 'assistant',
@@ -80,7 +96,7 @@ export const AiChatPage: React.FC = () => {
         role: 'assistant',
         content: `Notice: ${err.message || 'Unable to connect to support right now'}. Deterministic firewall is protecting all ledger transactions.`,
         provider_used: 'Bankism Assistant',
-        provider_id: 'gemini',
+        provider_id: activeProvider,
         timestamp: new Date().toISOString()
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -103,11 +119,26 @@ export const AiChatPage: React.FC = () => {
     "How do transaction security guardrails work?"
   ];
 
-  const getProviderBadge = () => {
+  const getProviderBadge = (m?: ChatMessage) => {
+    const provId = m?.provider_id || activeProvider;
+    let name = 'Google Gemini 2.5 Flash';
+    let colorClass = 'bg-[#eff6ff] text-[#1d4ed8] border-[#bfdbfe]';
+
+    if (provId === 'gemini') {
+      name = 'Google Gemini 2.5 Flash';
+      colorClass = 'bg-[#eff6ff] text-[#1d4ed8] border-[#bfdbfe]';
+    } else if (provId === 'groq') {
+      name = 'Groq LLaMA 3.3 70B';
+      colorClass = 'bg-[#fff7ed] text-[#c2410c] border-[#fed7aa]';
+    } else if (provId === 'openai') {
+      name = 'OpenAI ChatGPT (GPT-4o)';
+      colorClass = 'bg-[#f0fdf4] text-[#15803d] border-[#bbf7d0]';
+    }
+
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#edf6ef] text-[#2d7a48] border border-[#c7e4cc]">
-        <Sparkles className="w-3 h-3 text-[#2d7a48]" />
-        Bankism Assistant
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${colorClass}`}>
+        <Sparkles className="w-3 h-3" />
+        {name}
       </span>
     );
   };
@@ -134,6 +165,18 @@ export const AiChatPage: React.FC = () => {
           <div className="flex items-center gap-2 bg-[#edf6ef] text-[#2d7a48] border border-[#c7e4cc] px-3.5 py-2 rounded-2xl text-xs font-semibold shadow-sm">
             <span className="w-2 h-2 rounded-full bg-[#2d7a48] animate-pulse" />
             <span>Assistant Online • Guardrails Active</span>
+          </div>
+        </div>
+
+        {/* Active Session Engine Banner (Session-Based Round Robin) */}
+        <div className="p-3.5 rounded-2xl bg-white/80 border border-[#cbd5e1]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-[10px] font-mono uppercase font-bold text-[#64748b]">Active Session Engine:</span>
+            {getProviderBadge()}
+            <span className="text-[11px] text-[#64748b] hidden sm:inline">• Answers all questions in this session</span>
+          </div>
+          <div className="text-[11px] font-mono text-[#475569] bg-[#f1f5f9] px-3 py-1 rounded-full border border-[#cbd5e1]/50 flex items-center gap-1.5 self-start sm:self-auto">
+            <span>🔄 Round-Robin by Session (Cycles Gemini → Groq → ChatGPT on refresh / logout)</span>
           </div>
         </div>
 
@@ -223,7 +266,7 @@ export const AiChatPage: React.FC = () => {
                   {m.role === 'assistant' && (
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2 border-b border-[#cbd5e1]/50 text-[11px]">
                       <div className="flex items-center gap-2">
-                        {getProviderBadge()}
+                        {getProviderBadge(m)}
                       </div>
 
                       <div className="flex items-center gap-1.5">

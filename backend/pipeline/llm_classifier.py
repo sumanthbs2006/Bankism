@@ -8,7 +8,6 @@ and human-friendly AI explainability.
 import os
 import re
 import json
-import time
 import urllib.request
 import urllib.error
 from typing import Optional, List, Dict, Any, Tuple
@@ -18,8 +17,7 @@ from pydantic import BaseModel
 from backend.config import (
     OPENAI_API_KEY,
     GEMINI_API_KEY,
-    GROQ_API_KEY,
-    LLM_CLASSIFIER_ENABLED
+    GROQ_API_KEY
 )
 from backend.schemas import ThreatCategory, RiskLevel, AIExplainability
 

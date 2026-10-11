@@ -302,27 +302,8 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecuteResponse | null>(null);
   const [executionError, setExecutionError] = useState<string | null>(null);
-  // AI Explainability & Multi-LLM Round-Robin State
+  // AI Explainability State
   const [showExplainability, setShowExplainability] = useState(true);
-  const [explaining, setExplaining] = useState(false);
-
-  const handleReExplain = async (mode: string = 'round_robin') => {
-    if (!inputMessage.trim()) return;
-    setExplaining(true);
-    try {
-      const explainRes = await api.explainRequest(inputMessage, mode);
-      if (verdict) {
-        setVerdict({
-          ...verdict,
-          ai_explainability: explainRes
-        });
-      }
-    } catch (err: any) {
-      console.error("AI Explainability error:", err);
-    } finally {
-      setExplaining(false);
-    }
-  };
 
   useEffect(() => {
     if (initialPrompt) {

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import {
   AlertTriangle,
-  Play,
-  ArrowRight
+  Play
 } from 'lucide-react';
 import { api } from '../api';
 import { FirewallVerdict } from '../types';

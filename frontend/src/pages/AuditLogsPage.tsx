@@ -16,35 +16,41 @@ export const AuditLogsPage: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [decisionFilter, setDecisionFilter] = useState('ALL');
   const [riskFilter, setRiskFilter] = useState('ALL');
   const [selectedLog, setSelectedLog] = useState<AuditLogEntry | null>(null);
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    try {
-      const res = await api.getAuditLogs({
-        search: searchTerm || undefined,
-        decision: decisionFilter !== 'ALL' ? decisionFilter : undefined,
-        risk: riskFilter !== 'ALL' ? riskFilter : undefined,
-        limit: 100
-      });
-      setLogs(res.logs);
-      setTotal(res.total);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchLogs();
-  }, [decisionFilter, riskFilter]);
+    let active = true;
+    setLoading(true);
+    api.getAuditLogs({
+      search: appliedSearch || undefined,
+      decision: decisionFilter !== 'ALL' ? decisionFilter : undefined,
+      risk: riskFilter !== 'ALL' ? riskFilter : undefined,
+      limit: 100
+    })
+      .then((res) => {
+        if (active) {
+          setLogs(res.logs);
+          setTotal(res.total);
+        }
+      })
+      .catch((err) => {
+        if (active) console.error(err);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [decisionFilter, riskFilter, appliedSearch]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchLogs();
+    setAppliedSearch(searchTerm);
   };
 
   const downloadJsonExport = () => {

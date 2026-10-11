@@ -39,6 +39,7 @@ export function App() {
   const handleLogout = () => {
     setAuthUser(null);
     localStorage.removeItem('bankism_auth_user');
+    api.resetChatSession();
     // Return to the initial fullscreen image gate with transparent signup/login
     setActiveTab('landing');
     window.scrollTo({ top: 0, behavior: 'smooth' });

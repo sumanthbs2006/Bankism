@@ -1,7 +1,6 @@
 """Mock Banking Service: simulated accounts, balances, recipients, and ledger."""
 
 import uuid
-import sqlite3
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 from backend.db import get_db_connection
