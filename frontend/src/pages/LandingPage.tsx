@@ -284,6 +284,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {onLoginSuccess && (
                 <div className="flex flex-col items-center pt-1">
                   <GoogleAuthButton
+                    mode={authMode}
                     onSuccess={onLoginSuccess}
                     buttonText={authMode === 'signup' ? 'Sign up with Google' : 'Sign in with Google'}
                     darkVariant={true}
