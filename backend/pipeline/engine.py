@@ -19,12 +19,13 @@ VERDICT SERIALIZER & AUDIT LOGGING
 import uuid
 import json
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from backend.db import get_db_connection
 from backend.schemas import (
     Decision,
     RiskLevel,
     ThreatCategory,
+    ThreatSignal,
     OperationType,
     FirewallPolicy,
     FirewallVerdict,
@@ -123,6 +124,41 @@ def run_pipeline(
     threat_stage.llm_classifier_used = True
     threat_stage.llm_model = f"{ai_explain.provider_name} ({ai_explain.model_name})"
 
+    # Integrate Multi-LLM Advisory Threat Intelligence into Stage 2
+    if ai_explain and (ai_explain.is_malicious or ai_explain.risk_level in ("HIGH", "CRITICAL")):
+        try:
+            ai_cat = ThreatCategory(ai_explain.threat_category)
+        except Exception:
+            text_lower = (ai_explain.plain_english_verdict + " " + ai_explain.assessment_summary).lower()
+            if any(k in text_lower for k in ["override", "security", "bypass", "validation", "policy", "skip"]):
+                ai_cat = ThreatCategory.POLICY_OVERRIDE
+            elif any(k in text_lower for k in ["jailbreak", "dan", "persona"]):
+                ai_cat = ThreatCategory.JAILBREAK
+            else:
+                ai_cat = ThreatCategory.PROMPT_INJECTION
+
+        ai_sev = RiskLevel.CRITICAL if ai_explain.risk_level == "CRITICAL" else RiskLevel.HIGH
+
+        threat_stage.signals_detected.append(ThreatSignal(
+            category=ai_cat,
+            signal_type="AI_DEFENSIVE_INSPECTOR",
+            pattern_matched=f"{ai_explain.provider_name} ({ai_explain.model_name})",
+            confidence=ai_explain.confidence or 0.95,
+            description=ai_explain.plain_english_verdict,
+            severity=ai_sev
+        ))
+
+        if ai_cat not in threat_stage.threat_categories:
+            threat_stage.threat_categories.append(ai_cat)
+        if ThreatCategory.NONE in threat_stage.threat_categories and len(threat_stage.threat_categories) > 1:
+            threat_stage.threat_categories.remove(ThreatCategory.NONE)
+
+        if threat_stage.highest_severity == RiskLevel.LOW or ai_sev == RiskLevel.CRITICAL:
+            threat_stage.highest_severity = ai_sev
+
+        threat_stage.status = "BLOCKED"
+        threat_stage.rationale = f"AI Defensive Inspector flagged request as unsafe: {ai_explain.plain_english_verdict}"
+
     # Stage 3: Intent & Entity Extraction
     intent_stage = extract_intent_and_entities(normalized_text)
 
@@ -198,25 +234,27 @@ def run_pipeline(
     # Harmonize AI Explainability with Final Verdict for clear, unified rationale across the console
     if ai_explain:
         if decision == Decision.BLOCK:
-            ai_explain.is_malicious = (threat_stage.status == "BLOCKED")
+            ai_explain.is_malicious = True
             ai_explain.risk_level = risk_level.value
-            if val_stage.errors:
-                ai_explain.plain_english_verdict = f"This request was blocked by the banking firewall: {val_stage.errors[0]}"
-                ai_explain.mitigation_advice = "Resolve policy and account validation requirements before resubmitting."
-                for err in val_stage.errors:
-                    if err not in ai_explain.risk_factors:
-                        ai_explain.risk_factors.append(err)
-            else:
-                ai_explain.plain_english_verdict = f"This request was blocked by the security firewall: {threat_stage.rationale}"
-                for sig in threat_stage.signals_detected:
-                    sig_desc = f"[{sig.category.value}] {sig.description}"
-                    if sig_desc not in ai_explain.risk_factors:
-                        ai_explain.risk_factors.append(sig_desc)
+            if not ai_explain.plain_english_verdict or ai_explain.plain_english_verdict == "Analyzed safe natural language request.":
+                if val_stage.errors:
+                    ai_explain.plain_english_verdict = f"This request was blocked by the banking firewall: {val_stage.errors[0]}"
+                    ai_explain.mitigation_advice = "Resolve policy and account validation requirements before resubmitting."
+                    for err in val_stage.errors:
+                        if err not in ai_explain.risk_factors:
+                            ai_explain.risk_factors.append(err)
+                else:
+                    ai_explain.plain_english_verdict = f"This request was blocked by the security firewall: {threat_stage.rationale}"
+                    for sig in threat_stage.signals_detected:
+                        sig_desc = f"[{sig.category.value}] {sig.description}"
+                        if sig_desc not in ai_explain.risk_factors:
+                            ai_explain.risk_factors.append(sig_desc)
         elif decision == Decision.REVIEW:
             ai_explain.is_malicious = False
             ai_explain.risk_level = risk_level.value
-            ai_explain.plain_english_verdict = f"This request requires manual verification: {'; '.join(val_stage.errors or [threat_stage.rationale])}"
-            ai_explain.mitigation_advice = "A human operator must inspect and authorize this transaction."
+            if not ai_explain.plain_english_verdict or ai_explain.plain_english_verdict == "Analyzed safe natural language request.":
+                ai_explain.plain_english_verdict = f"This request requires manual verification: {'; '.join(val_stage.errors or [threat_stage.rationale])}"
+                ai_explain.mitigation_advice = "A human operator must inspect and authorize this transaction."
         elif decision == Decision.APPROVE:
             ai_explain.is_malicious = False
             ai_explain.risk_level = "LOW"

@@ -776,7 +776,11 @@ export const ConsolePage: React.FC<ConsolePageProps> = ({
                     : 'bg-[#edf6ef] border-[#c7e4cc] text-[#166534]'
                 } space-y-1.5`}>
                   <div className="text-[11px] font-bold tracking-wider uppercase flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4" />
+                    {verdict.ai_explainability.is_malicious ? (
+                      <AlertOctagon className="w-4 h-4 text-[#c53b3b]" />
+                    ) : (
+                      <ShieldCheck className="w-4 h-4 text-[#2d7a48]" />
+                    )}
                     Summary & Final Result
                   </div>
                   <p className="text-sm font-medium leading-relaxed">

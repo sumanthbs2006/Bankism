@@ -238,6 +238,14 @@ def _create_fallback_explainability(text: str, provider_id: str, turn: int) -> A
         summary = "Adversarial persona adoption pattern detected attempting to subvert policy limits."
         risk_factors = ["Jailbreak persona token identified", "Attempt to subvert banking guardrails"]
         advice = "Terminate execution and flag session for operator investigation."
+    elif any(k in lower for k in ["don't bother", "dont bother", "skip validation", "bypass validation", "don't validate", "dont validate", "no need to validate"]):
+        is_malicious = True
+        risk_level = "CRITICAL"
+        category = "POLICY_OVERRIDE"
+        plain_verdict = "This request is unsafe because it explicitly asks the system to skip mandatory security checks and validation."
+        summary = "Policy override attempt detected instructing the firewall to omit recipient or security verification."
+        risk_factors = ["Validation bypass directive identified", "Social engineering attempt to suppress guardrails"]
+        advice = "Reject the request to bypass validation and enforce strict security checks."
     elif "memo:" in lower and any(k in lower for k in ["override", "limit", "auto_approve"]):
         is_malicious = True
         risk_level = "HIGH"

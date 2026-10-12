@@ -56,8 +56,14 @@ JAILBREAK_PATTERNS = [
 
 # 3. Policy Override & Safety Disabling
 POLICY_OVERRIDE_PATTERNS = [
-    (re.compile(r'(?i)\b(?:disable|turn\s+off|shut\s+down|bypass|deactivate|skip)\s+(?:the\s+)?(?:firewall|safety\s+filter|guardrails?|daily\s+limits?|verification|2fa|otp|compliance|audit)\b'),
-     "Direct command to disable security controls or daily limits.", RiskLevel.CRITICAL),
+    (re.compile(r'(?i)\b(?:disable|turn\s+off|shut\s+down|bypass|deactivate|skip|ignore|drop|disregard|omit)\s+(?:all\s+|any\s+|the\s+)?(?:mandatory\s+|security\s+|standard\s+|bank\s+|account\s+|recipient\s+)*(?:details?|firewall|safety\s+filter|guardrails?|daily\s+limits?|verification|validations?|validating|checks?|security\s+checks?|2fa|otp|compliance|audit|protocols?)\b'),
+     "Direct command to bypass validation or disable security controls.", RiskLevel.CRITICAL),
+    (re.compile(r'(?i)\b(?:don\'?t\s+bother\s+(?:with\s+|to\s+)?|no\s+need\s+to\s+)(?:validate|validating|verify|verifying|check|checking)\b'),
+     "Attempt to bypass mandatory validation or security verification.", RiskLevel.CRITICAL),
+    (re.compile(r'(?i)\b(?:don\'?t\s+(?:validate|verify|check)|do\s+not\s+(?:validate|verify|check))\s+(?:all\s+|any\s+|the\s+)?(?:bank\s+)?(?:details?|account|recipient|identity|limits?)\b'),
+     "Direct command to skip account/recipient detail validation.", RiskLevel.CRITICAL),
+    (re.compile(r'(?i)\b(?:trust\s+(?:me|him|her|them)\s+(?:and|so)?\s*(?:skip|bypass|don\'?t\s+check|no\s+need\s+to\s+check))\b'),
+     "Social engineering trust assertion attempting validation bypass.", RiskLevel.CRITICAL),
     (re.compile(r'(?i)\b(?:temporary|emergency|admin)\s+limit\s+is\s+now\s+[\$0-9,\.]+'),
      "Attempt to redefine transfer limits in prompt.", RiskLevel.CRITICAL),
     (re.compile(r'(?i)\b(?:set|change|update)\s+(?:max|daily)\s+limit\s+to\s+(?:unlimited|[\$0-9,\.]+)\b'),
